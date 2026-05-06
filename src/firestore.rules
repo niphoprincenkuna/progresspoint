@@ -1,0 +1,44 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isBoss() {
+      return signedIn() && userRole() == "Boss";
+    }
+
+    function isSupervisor() {
+      return signedIn() && userRole() == "Supervisor";
+    }
+
+    function isBossOrSupervisor() {
+      return isBoss() || isSupervisor();
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.auth.uid == userId;
+      allow update, delete: if isBoss();
+    }
+
+    match /tasks/{taskId} {
+      allow read: if signedIn();
+      allow create: if isBossOrSupervisor();
+      allow update: if signedIn();
+      allow delete: if isBoss();
+    }
+
+    match /clients/{clientId} {
+      allow read: if signedIn();
+      allow create, update: if isBossOrSupervisor();
+      allow delete: if isBoss();
+    }
+  }
+}
